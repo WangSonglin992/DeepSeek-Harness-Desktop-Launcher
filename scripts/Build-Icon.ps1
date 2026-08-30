@@ -1,12 +1,23 @@
 [CmdletBinding()]
 param(
-    [string]$SourcePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'assets\IMG_18845-source.png'),
-    [string]$PreviewPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'assets\DeepSeek-Harness.png'),
-    [string]$IconPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'assets\DeepSeek-Harness.ico')
+    [string]$SourcePath = '',
+    [string]$PreviewPath = '',
+    [string]$IconPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
+
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($SourcePath)) {
+    $SourcePath = Join-Path $repositoryRoot 'assets\IMG_18845-source.png'
+}
+if ([string]::IsNullOrWhiteSpace($PreviewPath)) {
+    $PreviewPath = Join-Path $repositoryRoot 'assets\DeepSeek-Harness.png'
+}
+if ([string]::IsNullOrWhiteSpace($IconPath)) {
+    $IconPath = Join-Path $repositoryRoot 'assets\DeepSeek-Harness.ico'
+}
 
 $python = Get-Command python -ErrorAction SilentlyContinue
 if (-not $python) {

@@ -7,7 +7,7 @@
 ## 特性
 
 - 不显示命令提示符或 PowerShell 窗口。
-- 每次运行官方最新版：`npx --yes @deepseek-ai/dsh@latest web --no-open`。
+- 安装时通过 pnpm 部署官方最新版，日常启动直接使用本地运行时，避免 npm/npx 的重复依赖解析。
 - 使用独立 Microsoft Edge 应用窗口，不与日常浏览器标签页混在一起。
 - 关闭应用窗口后，只终止本次启动器创建的 WSL 进程组。
 - 自动识别默认 WSL 发行版、Linux HOME、Windows 用户目录和 Edge 路径。
@@ -17,7 +17,7 @@
 
 - Windows 10/11 x64，已启用 WSL2。
 - 一个可用的 WSL Linux 发行版，包含 `bash`、`setsid`、`ps`、`awk`、`grep`、`tail`。
-- WSL 内已安装 Node.js、npm 与 npx。
+- WSL 内已安装 Node.js 与 pnpm。
 - Windows 已安装 Microsoft Edge。
 
 DeepSeek Harness 的账号、API 凭据和配置由目标电脑上的官方 Harness 自行管理。本仓库不会在电脑之间同步这些数据。
@@ -41,7 +41,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -Distro Ubuntu
 安装器会创建：
 
 - `%LOCALAPPDATA%\DeepSeek Harness`：启动器运行文件。
+- `%PROGRAMDATA%\DeepSeekHarness`：供 Windows Shell 读取的版本化图标缓存。
 - `%USERPROFILE%\Desktop\DeepSeek Harness.lnk`：桌面快捷方式。
+
+快捷方式会直接指向已安装的 VBS 启动器，避免 `wscript.exe` 命令行对带空格脚本路径的引号解析问题。图标路径会以不含环境变量的绝对路径写入；每次安装都会重建 `.lnk`，并立即校验启动目标、图标路径与 ICO 内容。
 
 安装完成后双击桌面图标即可。首次使用时，如果官方 Harness 要求登录或配置，请在其页面中完成；凭据只保存在该电脑的官方 Harness 用户目录。
 
@@ -52,7 +55,7 @@ git pull
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
 ```
 
-重复运行安装器会更新启动器和图标，不会删除 `~/.dsh` 或 npm 缓存。
+重复运行安装器会更新启动器、图标和 WSL 中的官方 Harness 运行时，不会删除 `~/.dsh` 或 pnpm 缓存。
 
 ## 卸载
 
@@ -62,7 +65,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Uninstall.ps1
 ```
 
-卸载器只删除桌面快捷方式和 `%LOCALAPPDATA%\DeepSeek Harness`。它不会删除 WSL、Node.js、npm 缓存或 `~/.dsh` 中的官方配置与会话。
+卸载器只删除桌面快捷方式、`%LOCALAPPDATA%\DeepSeek Harness` 和 `%PROGRAMDATA%\DeepSeekHarness` 图标缓存。它不会删除 WSL、Node.js、pnpm 缓存、Harness 运行时或 `~/.dsh` 中的官方配置与会话。
 
 ## 重新生成图标
 
@@ -82,9 +85,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-Icon.ps1
 - `~/.dsh/.credentials.yaml`、环境变量和任何 API key。
 - `~/.dsh` 中的 settings、sessions、storages 与 profiles。
 - `launcher.log`、`EdgeProfile` 和生成的 `launcher-config.json`。
-- npm/npx 缓存及其他项目文件。
+- pnpm 缓存、Harness 运行时及其他项目文件。
 
-运行 `scripts\Test-Package.ps1` 可以执行 PowerShell/Bash 语法检查、隔离安装检查和敏感信息扫描，不会调用模型 API。
+运行 `scripts\Test-Package.ps1` 可以执行 PowerShell/Bash 语法检查、快捷方式启动与图标路径回归测试、隔离安装检查和敏感信息扫描，不会调用模型 API。
 
 ## 说明
 

@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'DeepSeek Harness'),
+    [string]$IconCacheRoot = (Join-Path $env:ProgramData 'DeepSeekHarness'),
     [string]$ShortcutPath = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'DeepSeek Harness.lnk')
 )
 
@@ -11,6 +12,11 @@ $expectedRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'DeepSeek Ha
 $requestedRoot = [IO.Path]::GetFullPath($InstallRoot)
 if (-not $requestedRoot.Equals($expectedRoot, [StringComparison]::OrdinalIgnoreCase)) {
     throw "Refusing to remove an unexpected directory: $requestedRoot"
+}
+$expectedIconCacheRoot = [IO.Path]::GetFullPath((Join-Path $env:ProgramData 'DeepSeekHarness'))
+$requestedIconCacheRoot = [IO.Path]::GetFullPath($IconCacheRoot)
+if (-not $requestedIconCacheRoot.Equals($expectedIconCacheRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove an unexpected icon cache directory: $requestedIconCacheRoot"
 }
 
 $configPath = Join-Path $requestedRoot 'launcher-config.json'
@@ -46,6 +52,9 @@ if (Test-Path -LiteralPath $ShortcutPath) {
 if (Test-Path -LiteralPath $requestedRoot) {
     Remove-Item -LiteralPath $requestedRoot -Recurse -Force
 }
+if (Test-Path -LiteralPath $requestedIconCacheRoot) {
+    Remove-Item -LiteralPath $requestedIconCacheRoot -Recurse -Force
+}
 
 Write-Host 'DeepSeek Harness Desktop Launcher was removed.' -ForegroundColor Green
-Write-Host 'WSL, npm cache, and ~/.dsh data were preserved.'
+Write-Host 'WSL, pnpm cache, Harness runtime, and ~/.dsh data were preserved.'

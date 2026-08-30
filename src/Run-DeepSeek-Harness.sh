@@ -3,6 +3,8 @@ set -eu
 
 state_dir="/tmp/deepseek-harness-desktop-${UID}"
 log_dir="${HOME}/.cache/deepseek-harness-launcher"
+runtime_dir="${HOME}/.local/share/deepseek-harness-launcher/runtime"
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 mkdir -p "$state_dir" "$log_dir"
 chmod 700 "$state_dir" "$log_dir"
 
@@ -59,6 +61,32 @@ stop_state_file() {
   rm -f -- "$state_file"
 }
 
+install_runtime() {
+  if ! command -v pnpm >/dev/null 2>&1; then
+    printf 'pnpm is required to install DeepSeek Harness.\n' >&2
+    return 24
+  fi
+
+  mkdir -p "$runtime_dir"
+  chmod 700 "$runtime_dir"
+  if [ ! -f "$script_dir/pnpm-workspace.yaml" ]; then
+    printf 'The pnpm runtime policy is missing next to %s.\n' "$0" >&2
+    return 25
+  fi
+  cp -- "$script_dir/pnpm-workspace.yaml" "$runtime_dir/pnpm-workspace.yaml"
+  if [ ! -f "$runtime_dir/package.json" ]; then
+    pnpm --dir "$runtime_dir" init >/dev/null
+  fi
+
+  PNPM_CONFIG_AUTO_INSTALL_PEERS=true \
+    pnpm --dir "$runtime_dir" add --save-exact @deepseek-ai/dsh@latest
+
+  if [ ! -x "$runtime_dir/node_modules/.bin/dsh" ]; then
+    printf 'DeepSeek Harness runtime was not installed correctly.\n' >&2
+    return 27
+  fi
+}
+
 start_harness() {
   local launch_id="$1"
   local state_file pid pgid log_file
@@ -90,8 +118,13 @@ start_harness() {
   }
   trap cleanup EXIT
 
+  if [ ! -x "$runtime_dir/node_modules/.bin/dsh" ]; then
+    printf 'DeepSeek Harness runtime is missing. Run Install.ps1 again.\n' >&2
+    return 26
+  fi
+
   export BROWSER=none
-  npx --yes @deepseek-ai/dsh@latest web --no-open >> "$log_file" 2>&1
+  "$runtime_dir/node_modules/.bin/dsh" web --no-open >> "$log_file" 2>&1
 }
 
 stop_launch() {
@@ -112,6 +145,9 @@ stop_all() {
 }
 
 case "${1:-}" in
+  install)
+    install_runtime
+    ;;
   start)
     start_harness "${2:-}"
     ;;
@@ -122,7 +158,7 @@ case "${1:-}" in
     stop_all
     ;;
   *)
-    printf 'Usage: %s {start <launch-id>|stop <launch-id>|stop-all}\n' "$0" >&2
+    printf 'Usage: %s {install|start <launch-id>|stop <launch-id>|stop-all}\n' "$0" >&2
     exit 2
     ;;
 esac

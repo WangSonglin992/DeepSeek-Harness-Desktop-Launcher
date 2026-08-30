@@ -65,21 +65,63 @@ foreach ($file in $textFiles) {
 $temporaryBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $temporaryRoot = Join-Path $temporaryBase ('dsh-launcher-test-' + [guid]::NewGuid().ToString('N'))
 $temporaryShortcut = Join-Path $temporaryRoot 'DeepSeek Harness.lnk'
+$temporaryInstallRoot = Join-Path $temporaryRoot 'app'
+$temporaryIconRoot = Join-Path $temporaryRoot 'icons'
 try {
-    & (Join-Path $repositoryRoot 'Install.ps1') -Distro $Distro -InstallRoot (Join-Path $temporaryRoot 'app') -ShortcutPath $temporaryShortcut
+    New-Item -ItemType Directory -Force -Path $temporaryIconRoot | Out-Null
+    Set-Content -LiteralPath (Join-Path $temporaryIconRoot 'DeepSeek-Harness-stale.ico') -Value 'stale icon cache entry'
+
+    # Reproduce the historical shortcut shape: wscript.exe plus a literal icon
+    # environment token. The installer must replace both fragile fields.
+    $shell = New-Object -ComObject WScript.Shell
+    $legacyShortcut = $shell.CreateShortcut($temporaryShortcut)
+    $legacyShortcut.TargetPath = (Join-Path $env:WINDIR 'System32\wscript.exe')
+    $legacyShortcut.IconLocation = '%USERPROFILE%\AppData\Local\DeepSeek Harness\missing.ico,0'
+    $legacyShortcut.Description = 'legacy icon-path regression fixture'
+    $legacyShortcut.Save()
+
+    & (Join-Path $repositoryRoot 'Install.ps1') -Distro $Distro -InstallRoot $temporaryInstallRoot -IconCacheRoot $temporaryIconRoot -ShortcutPath $temporaryShortcut -SkipRuntimeInstall
     if (-not (Test-Path -LiteralPath $temporaryShortcut)) {
         throw 'The isolated installer did not create a shortcut.'
     }
-    $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($temporaryShortcut)
-    if ($shortcut.TargetPath -notlike '*\wscript.exe') {
-        throw 'The isolated shortcut does not target wscript.exe.'
+    $expectedVbsPath = Join-Path $temporaryInstallRoot 'Launch-DeepSeek-Harness.vbs'
+    if (-not (Test-Path -LiteralPath $expectedVbsPath) -or
+        -not ([string]$shortcut.TargetPath).Equals($expectedVbsPath, [StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::IsNullOrEmpty([string]$shortcut.Arguments)) {
+        throw 'The isolated shortcut does not target the installed VBS launcher directly.'
     }
-    $shortcutIcon = ($shortcut.IconLocation -split ',')[0]
+    if ($shortcut.Description -eq 'legacy icon-path regression fixture') {
+        throw 'The installer did not replace the legacy shortcut.'
+    }
+    if ($shortcut.IconLocation -notmatch '^(?<IconPath>.+),0$') {
+        throw "The isolated shortcut has an invalid icon location: $($shortcut.IconLocation)"
+    }
+    $shortcutIcon = [IO.Path]::GetFullPath($Matches.IconPath)
+    if (-not [IO.Path]::IsPathRooted($shortcutIcon) -or $shortcutIcon.Contains('%')) {
+        throw "The isolated shortcut icon is not a token-free absolute path: $shortcutIcon"
+    }
+    $expectedIconRoot = [IO.Path]::GetFullPath($temporaryIconRoot)
+    if (-not (Split-Path -Parent $shortcutIcon).Equals($expectedIconRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "The isolated shortcut icon was saved outside the dedicated icon cache: $shortcutIcon"
+    }
     if (-not (Test-Path -LiteralPath $shortcutIcon)) {
         throw 'The isolated shortcut icon does not exist.'
     }
-    $generatedConfig = Join-Path $temporaryRoot 'app\launcher-config.json'
+    $sourceIcon = Join-Path $repositoryRoot 'assets\DeepSeek-Harness.ico'
+    if ((Get-FileHash -LiteralPath $shortcutIcon -Algorithm SHA256).Hash -ne
+        (Get-FileHash -LiteralPath $sourceIcon -Algorithm SHA256).Hash) {
+        throw 'The isolated shortcut icon does not match the packaged ICO.'
+    }
+    $cachedIcons = @(Get-ChildItem -LiteralPath $temporaryIconRoot -File -Filter 'DeepSeek-Harness-*.ico')
+    if ($cachedIcons.Count -ne 1 -or
+        -not $cachedIcons[0].FullName.Equals($shortcutIcon, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The isolated installer did not clean stale icon cache entries.'
+    }
+    if (Get-ChildItem -LiteralPath $temporaryInstallRoot -File -Filter 'DeepSeek-Harness-*.ico') {
+        throw 'The isolated installer left an icon in the legacy per-user install directory.'
+    }
+    $generatedConfig = Join-Path $temporaryInstallRoot 'launcher-config.json'
     $configText = Get-Content -LiteralPath $generatedConfig -Raw
     foreach ($pattern in $secretPatterns[0..4]) {
         if ($configText -match $pattern) {
@@ -96,4 +138,4 @@ finally {
     }
 }
 
-Write-Host 'Package validation passed: syntax, isolated install, and secret scan.' -ForegroundColor Green
+Write-Host 'Package validation passed: syntax, shortcut regression, isolated install, and secret scan.' -ForegroundColor Green
