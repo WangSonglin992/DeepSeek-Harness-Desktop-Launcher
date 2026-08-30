@@ -91,4 +91,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build-Icon.ps1
 
 ## 说明
 
-本项目是非官方桌面启动辅助工具。DeepSeek Harness 由 DeepSeek 提供；本启动器仅调用其公开 npm 包，不修改 Harness 本身。图标源图由仓库所有者提供，未包含在代码许可证授权范围内。
+本项目是非官方桌面启动辅助工具。DeepSeek Harness 由 DeepSeek 提供；本启动器仅调用其公开 npm 包，不修改 Harness 本身。图标源图来源于互联网，本人不持有著作权。
